@@ -11,6 +11,7 @@
 #include <omp.h>
 #include "Shaders.h"
 #include "Fragment.h"
+#include "Camera.h"
 
 using namespace std::chrono;
 
@@ -19,8 +20,6 @@ Framebuffer framebuffer;
 std::vector<glm::vec3> vertexArray;
 std::vector<glm::vec3> resultVertexArray;
 std::vector<Face> faceArray;
-glm::mat4 rotMatrix = glm::rotate(glm::mat4(1), (0.05f), glm::vec3(0, 1, 0.2));
-Color myColor(255, 255, 255);
 
 // SDL window and renderer
 SDL_Window* window = nullptr;
@@ -48,13 +47,11 @@ bool init() {
     return true;
 }
 
-std::vector<std::vector<glm::vec3>> primitiveAssembly(
-        const std::vector<glm::vec3>& transformedVertices
-) {
-    std::vector<std::vector<glm::vec3>> assembledPrimitives;
-    std::vector<glm::vec3> currentPrimitive;
+std::vector<std::vector<Vertex>> primitiveAssembly(const std::vector<Vertex>& transformedVertices) {
+    std::vector<std::vector<Vertex>> assembledPrimitives;
+    std::vector<Vertex> currentPrimitive;
 
-    for (const glm::vec3& vertex : transformedVertices) {
+    for (const Vertex vertex : transformedVertices) {
         currentPrimitive.push_back(vertex);
 
         if (currentPrimitive.size() == 3) {
@@ -66,22 +63,45 @@ std::vector<std::vector<glm::vec3>> primitiveAssembly(
     return assembledPrimitives;
 }
 
-// Function to render using vertex and uniform data
-void render(const std::vector<glm::vec3>& vertices) {
+glm::mat4 createProjectionMatrix() {
+    float fovInDegrees = 60.0f;
+    float aspectRatio = static_cast<float>(SCREEN_WIDTH / SCREEN_HEIGHT);
+    float nearClip = 0.1f;
+    float farClip = 100.0f;
 
+    return glm::perspective(glm::radians(fovInDegrees), aspectRatio, nearClip, farClip);
+}
+
+glm::mat4 createViewportMatrix() {
+    glm::mat4 viewport = glm::mat4(1.0f);
+
+    // Scale
+    viewport = glm::scale(viewport, glm::vec3(SCREEN_WIDTH / 2.0f, SCREEN_WIDTH / 2.0f, 0.5f));
+
+    // Translate
+    viewport = glm::translate(viewport, glm::vec3(1.0f, 1.0f, 0.5f));
+
+    return viewport;
+}
+
+// Function to render using vertex and uniform data
+void render(const std::vector<glm::vec3>& VBO, const Uniforms& uniforms) {
     // 1. Vertex Shader
-    std::vector<glm::vec3> transformedVertices;
-    for (const glm::vec3& vertex : vertices) {
-        glm::vec3 transformedVertex = vertexShader(vertex);
+    std::vector<Vertex> transformedVertices;
+    for (int i=0; i<VBO.size(); i+=1) {
+        glm::vec3 v = VBO[i];
+
+        Vertex vertex = {v,Color(255,255,255)};
+        Vertex transformedVertex = vertexShader(vertex, uniforms);
         transformedVertices.push_back(transformedVertex);
     }
 
     // 2. Primitive Assembly
-    std::vector<std::vector<glm::vec3>> assembledPrimitives = primitiveAssembly(transformedVertices);
+    std::vector<std::vector<Vertex>> assembledPrimitives = primitiveAssembly(transformedVertices);
 
     // 3. Rasterization
     std::vector<Fragment> fragments;
-    for (std::vector<glm::vec3> item : assembledPrimitives) {
+    for (std::vector<Vertex> item : assembledPrimitives) {
         std::vector<Fragment> rasterizedTriangle = triangle(
                 item[0],
                 item[1],
@@ -91,29 +111,20 @@ void render(const std::vector<glm::vec3>& vertices) {
                 fragments.end(),
                 rasterizedTriangle.begin(),
                 rasterizedTriangle.end()
-                );
+        );
     }
+
     // 4. Fragment Shader
-    for(Fragment fragment: fragments){
+    for (Fragment fragment : fragments) {
         Color fragmentColor = fragmentShader(fragment);
         point(framebuffer, fragment.position.x, fragment.position.y, fragmentColor);
     }
 }
 
-
 int main(int argc, char* argv[]) {
     if (!init()) {
         return 1;
     }
-
-    // Initialize uniforms for model, view, and projection matrices
-    Uniforms uniforms;
-    glm::mat4 model = glm::mat4(1);
-    glm::mat4 view = glm::mat4(1);
-    glm::mat4 projection = glm::mat4(1);
-    uniforms.model = model;
-    uniforms.model = view;
-    uniforms.model = projection;
 
     bool running = true;
 
@@ -122,7 +133,30 @@ int main(int argc, char* argv[]) {
     resultVertexArray = setupVertexArray(vertexArray, faceArray);
     glm::vec4 tempVector;
 
-    auto lastTime = high_resolution_clock::now();  // Record initial time
+    Uniforms uniforms;
+
+    glm::mat4 model = glm::mat4(1);
+    glm::mat4 view = glm::mat4(1);
+    glm::mat4 projection = glm::mat4(1);
+
+    glm::vec3 translationVector(0.0f, 0.0f, 0.0f);
+    float a = 45.0f;
+    glm::vec3 rotationAxis(0.0f, 1.0f, 0.2f); // Rotate around the Y-axis
+    glm::vec3 scaleFactor(1.0f, -1.0f, 1.0f);
+
+    // Camera
+    Camera camera;
+    camera.cameraPosition = glm::vec3(0.0f, 0.0f, 5.0f);
+    camera.targetPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+    camera.upVector = glm::vec3(0.0f, 1.0f, 0.0f);
+
+    glm::mat4 translation = glm::translate(glm::mat4(1.0f), translationVector);
+    glm::mat4 scale = glm::scale(glm::mat4(1.0f), scaleFactor);
+
+    uniforms.viewport = createViewportMatrix();
+    uniforms.projection = createProjectionMatrix();
+
+    auto lastTime = high_resolution_clock::now();
 
     Uint32 frameStart, frameTime;
     std::string title = "FPS: ";
@@ -139,14 +173,18 @@ int main(int argc, char* argv[]) {
         // Clear the framebuffer
         clear(framebuffer);
 
-        // Apply rotation to vertices
-        #pragma omp parallel for
-        for (int i = 0; i < resultVertexArray.size(); i++) {
-            glm::vec3 tempVector = rotMatrix * glm::vec4(resultVertexArray[i].x, resultVertexArray[i].y, resultVertexArray[i].z, 0);
-            resultVertexArray[i] = glm::vec3(tempVector.x, tempVector.y, tempVector.z);
-        }
+        a += 0.5;
+        glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(a), rotationAxis);
 
-        render(resultVertexArray);
+
+        uniforms.model = translation * rotation * scale;
+        uniforms.view = glm::lookAt(
+                camera.cameraPosition, // The position of the camera
+                camera.targetPosition, // The point the camera is looking at
+                camera.upVector        // The up vector defining the camera's orientation
+        );
+
+        render(resultVertexArray, uniforms);
         renderBuffer(renderer, framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT);
 
         // Calculate frames per second and update window title

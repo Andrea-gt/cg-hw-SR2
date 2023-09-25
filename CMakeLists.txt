@@ -17,7 +17,7 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
 add_executable(${PROJECT_NAME}
         main.cpp
         ${SOURCES}
-        Color.h Framebuffer.h Face.h ObjReader.h Uniforms.h Shaders.h Line.h)
+        Color.h Framebuffer.h Face.h ObjReader.h Uniforms.h Shaders.h Line.h Camera.h)
 
 target_include_directories(${PROJECT_NAME}
         PRIVATE ${PROJECT_SOURCE_DIR}/include

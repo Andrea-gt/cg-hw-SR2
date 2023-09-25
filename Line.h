@@ -3,9 +3,9 @@
 #include <glm/glm.hpp>
 #include "Fragment.h"
 
-std::vector<Fragment> line(const glm::vec3& v1, const glm::vec3& v2) {
-    glm::ivec2 p1(static_cast<int>(v1.x), static_cast<int>(v1.y));
-    glm::ivec2 p2(static_cast<int>(v2.x), static_cast<int>(v2.y));
+std::vector<Fragment> line(const Vertex& v1, const Vertex& v2) {
+    glm::ivec2 p1(static_cast<int>(v1.position.x), static_cast<int>(v1.position.y));
+    glm::ivec2 p2(static_cast<int>(v2.position.x), static_cast<int>(v2.position.y));
 
     std::vector<Fragment> fragments;
 
@@ -21,6 +21,7 @@ std::vector<Fragment> line(const glm::vec3& v1, const glm::vec3& v2) {
     while (true) {
         Fragment fragment;
         fragment.position = current;
+        fragment.color = v1.color;
 
         fragments.push_back(fragment);
 
