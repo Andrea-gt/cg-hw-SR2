@@ -11,6 +11,8 @@ Vertex vertexShader(const Vertex& vertex, const Uniforms& uniforms) {
     // Perspective divide
     glm::vec3 ndcVertex = glm::vec3(clipSpaceVertex) / clipSpaceVertex.w;
 
+    // Normal transformation
+    glm::vec3 transformedNormal = glm::mat3(uniforms.model) * vertex.normal;
 
     // Apply the viewport transform
     glm::vec4 screenVertex = uniforms.viewport * glm::vec4(ndcVertex, 1.0f);
@@ -18,11 +20,13 @@ Vertex vertexShader(const Vertex& vertex, const Uniforms& uniforms) {
     // Return the transformed vertex as a vec3
     return Vertex{
             glm::vec3(screenVertex),
-            vertex.color
+            vertex.color,
+            transformedNormal
     };
 }
 
 Color fragmentShader(Fragment& fragment) {
+    fragment.color = fragment.color * fragment.intensity; // Red color with full opacity
     return fragment.color;
 };
 

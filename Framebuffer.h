@@ -9,13 +9,15 @@
 #include "Fragment.h"
 #include "Line.h"
 
-constexpr size_t SCREEN_WIDTH = 1280;
-constexpr size_t SCREEN_HEIGHT = 1024;
+constexpr size_t SCREEN_WIDTH = 800;
+constexpr size_t SCREEN_HEIGHT = 600;
 
 // Create a framebuffer alias using the Color struct and the defined screen dimensions
 using Framebuffer = std::array<std::array<Color, SCREEN_WIDTH>, SCREEN_HEIGHT>;
 
-glm::vec3 L = glm::vec3(1.0f, 0.0f, 0.0f);
+using Zbuffer = std::array<std::array<float, SCREEN_WIDTH>, SCREEN_HEIGHT>;
+
+glm::vec3 L = glm::vec3(50.0f, 0.0f, 50.0f);
 
 std::pair<float, float> barycentricCoordinates(const glm::ivec2& P, const glm::vec3& A, const glm::vec3& B, const glm::vec3& C) {
     glm::vec3 bary = glm::cross(
@@ -33,19 +35,23 @@ std::pair<float, float> barycentricCoordinates(const glm::ivec2& P, const glm::v
     );
 }
 
-void clear(Framebuffer& framebuffer) {
+void clear(Framebuffer& framebuffer, Zbuffer& zbuffer) {
 
 #pragma omp parallel for
     for (size_t i = 0; i < SCREEN_HEIGHT; i++) {
         for (size_t j = 0; j < SCREEN_WIDTH; j++) {
             framebuffer[i][j] = Color(0,0,0);
+            zbuffer[i][j] = 99999.0f;
         }
     }
 }
 
-void point(Framebuffer &framebuffer, int x, int y, Color color) {
+void point(Framebuffer &framebuffer, Zbuffer &zbuffer,  int x, int y, double z, Color color) {
     if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
-        framebuffer[y][x] = color;
+        if(zbuffer[y][x] > z ){
+            framebuffer[y][x] = color;
+            zbuffer[y][x] = z;
+        }
     }
 }
 
@@ -61,6 +67,7 @@ std::vector<Fragment> triangle(const Vertex& a, const Vertex& b, const Vertex& c
     float maxY = std::max(std::max(A.y, B.y), C.y);
 
     // Iterate over each point in the bounding box
+#pragma omp parallel for
     for (int y = static_cast<int>(std::ceil(minY)); y <= static_cast<int>(std::floor(maxY)); ++y) {
         for (int x = static_cast<int>(std::ceil(minX)); x <= static_cast<int>(std::floor(maxX)); ++x) {
             if (x < 0 || y < 0 || y > SCREEN_HEIGHT || x > SCREEN_WIDTH)
@@ -81,12 +88,10 @@ std::vector<Fragment> triangle(const Vertex& a, const Vertex& b, const Vertex& c
             glm::vec3 normal = glm::normalize(
                     a.normal * w + b.normal * v + c.normal * u
             );
-            // glm::vec3 normal = a.normal; // assume flatness
-            float intensity = glm::dot(normal, L);
 
-            if (intensity < 0)
-                continue;
-
+            glm::vec3 lightDirection = glm::normalize(L - glm::vec3(w,v,u));
+            float intensity = glm::dot(normal, lightDirection);
+            
             Color color = Color(255, 255, 255);
 
             fragments.push_back(

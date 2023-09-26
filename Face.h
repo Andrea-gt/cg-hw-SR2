@@ -2,6 +2,9 @@
 #include <array>
 #pragma once
 
-struct Face {
-    std::vector<std::array<int, 3>> vertexIndices;
+struct Face
+{
+    std::array<int, 3> vertexIndices;
+    std::array<int, 3> normalIndices;
+    std::array<int, 3> texIndices;
 };
