@@ -17,7 +17,7 @@ using Framebuffer = std::array<std::array<Color, SCREEN_WIDTH>, SCREEN_HEIGHT>;
 
 using Zbuffer = std::array<std::array<float, SCREEN_WIDTH>, SCREEN_HEIGHT>;
 
-glm::vec3 L = glm::vec3(50.0f, 0.0f, 50.0f);
+glm::vec3 L = glm::vec3(0.0f, 0.0f, 100.0f);
 
 std::pair<float, float> barycentricCoordinates(const glm::ivec2& P, const glm::vec3& A, const glm::vec3& B, const glm::vec3& C) {
     glm::vec3 bary = glm::cross(
@@ -93,13 +93,15 @@ std::vector<Fragment> triangle(const Vertex& a, const Vertex& b, const Vertex& c
             float intensity = glm::dot(normal, lightDirection);
             
             Color color = Color(255, 255, 255);
+            glm::vec3 original = a.originalPos * w + b.originalPos * v + c.originalPos * u;
 
             fragments.push_back(
                     Fragment{
                             P,
                             color,
                             z,
-                            intensity}
+                            intensity,
+                            original}
             );
         }
     }

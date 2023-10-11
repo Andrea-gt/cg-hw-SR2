@@ -9,6 +9,7 @@
 #include <glm/glm.hpp>
 #include <chrono>
 #include <omp.h>
+#include <random>
 #include "Shaders.h"
 #include "Fragment.h"
 #include "Camera.h"
@@ -45,6 +46,33 @@ bool init() {
     }
 
     return true;
+}
+
+int getRandomInt(int min, int max) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dist(min, max);
+    return dist(gen);
+}
+
+std::vector<std::pair<int, int>> staticPixels;
+
+// Function to add random static white pixels
+void addRandomStaticWhitePixels() {
+    staticPixels.clear();  // Clear the existing static pixels
+    int numStaticPixels = 50;  // Adjust the number of static pixels as needed
+    for (int i = 0; i < numStaticPixels; ++i) {
+        int x = getRandomInt(0, SCREEN_WIDTH - 1);
+        int y = getRandomInt(0, SCREEN_HEIGHT - 1);
+        staticPixels.push_back(std::make_pair(x, y));
+    }
+}
+
+// Function to copy static pixels to the framebuffer
+void copyStaticPixelsToFramebuffer(Framebuffer& framebuffer) {
+    for (const auto& pixel : staticPixels) {
+        point(framebuffer, zbuffer, pixel.first, pixel.second, 0, Color(255, 255, 255));
+    }
 }
 
 std::vector<std::vector<Vertex>> primitiveAssembly(const std::vector<Vertex>& transformedVertices) {
@@ -114,7 +142,7 @@ void render(const std::vector<Vertex>& VBO, const Uniforms& uniforms) {
 
     // 4. Fragment Shader
     for (Fragment& fragment : fragments) {
-        Color fragmentColor = fragmentShader(fragment);
+        Color fragmentColor = fragmentShaderSun(fragment);
         point(framebuffer, zbuffer, fragment.position.x, fragment.position.y, fragment.z,fragmentColor);
     }
 }
@@ -133,7 +161,7 @@ int main(int argc, char* argv[]) {
     std::vector<glm::vec3> vertexBufferObject; // This will contain both vertices and normals
 
     // Load OBJ file and set up vertex and face data
-    loadOBJ("../Spaceship.obj", vertices, normals, texCoords, faces );
+    loadOBJ("../sphere.obj", vertices, normals, texCoords, faces );
     resultVertexArray = setupVertexArray(vertices, normals, faces);
     glm::vec4 tempVector;
 
@@ -143,10 +171,10 @@ int main(int argc, char* argv[]) {
     glm::mat4 view = glm::mat4(1);
     glm::mat4 projection = glm::mat4(1);
 
-    glm::vec3 translationVector(0.0f, 0.0f, 0.0f);
+    glm::vec3 translationVector(0.0f, -0.5f, 0.0f);
     float a = 45.0f;
     glm::vec3 rotationAxis(0.0f, 1.0f, 0.2f); // Rotate around the Y-axis
-    glm::vec3 scaleFactor(1.0f, -1.0f, 1.0f);
+    glm::vec3 scaleFactor(2.0f, -2.0f, 2.0f);
 
     // Camera
     Camera camera;
@@ -165,6 +193,8 @@ int main(int argc, char* argv[]) {
     Uint32 frameStart, frameTime;
     std::string title = "FPS: ";
 
+    addRandomStaticWhitePixels();
+
     while (running) {
         frameStart = SDL_GetTicks();
         SDL_Event event;
@@ -176,6 +206,7 @@ int main(int argc, char* argv[]) {
 
         // Clear the framebuffer
         clear(framebuffer, zbuffer);
+        copyStaticPixelsToFramebuffer(framebuffer);
 
         a += 0.5;
         glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(a), rotationAxis);
