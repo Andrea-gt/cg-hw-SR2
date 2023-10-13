@@ -16,6 +16,15 @@
 
 using namespace std::chrono;
 
+using renderFunction = std::function<Color(Fragment&)>;
+std::unordered_map<std::string, renderFunction> renderDictionary;
+
+void renderingFunctionCall() {
+    renderDictionary["moon"] = fragmentShaderMoon;
+    renderDictionary["earth"] = fragmentShaderEarth;
+}
+
+
 // Global variables
 Framebuffer framebuffer;
 Zbuffer zbuffer;
@@ -46,33 +55,6 @@ bool init() {
     }
 
     return true;
-}
-
-int getRandomInt(int min, int max) {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> dist(min, max);
-    return dist(gen);
-}
-
-std::vector<std::pair<int, int>> staticPixels;
-
-// Function to add random static white pixels
-void addRandomStaticWhitePixels() {
-    staticPixels.clear();  // Clear the existing static pixels
-    int numStaticPixels = 50;  // Adjust the number of static pixels as needed
-    for (int i = 0; i < numStaticPixels; ++i) {
-        int x = getRandomInt(0, SCREEN_WIDTH - 1);
-        int y = getRandomInt(0, SCREEN_HEIGHT - 1);
-        staticPixels.push_back(std::make_pair(x, y));
-    }
-}
-
-// Function to copy static pixels to the framebuffer
-void copyStaticPixelsToFramebuffer(Framebuffer& framebuffer) {
-    for (const auto& pixel : staticPixels) {
-        point(framebuffer, zbuffer, pixel.first, pixel.second, 0, Color(255, 255, 255));
-    }
 }
 
 std::vector<std::vector<Vertex>> primitiveAssembly(const std::vector<Vertex>& transformedVertices) {
@@ -113,9 +95,10 @@ glm::mat4 createViewportMatrix() {
 }
 
 // Function to render using vertex and uniform data
-void render(const std::vector<Vertex>& VBO, const Uniforms& uniforms) {
+void render(const std::vector<Vertex> &VBO, const Uniforms &uniforms, std::string shaderType) {
     // 1. Vertex Shader
     std::vector<Vertex> transformedVertices;
+
 #pragma omp parallel for
     for (int i=0; i<VBO.size(); i+=1) {
         Vertex transformedVertex = vertexShader(VBO[i], uniforms);
@@ -142,12 +125,25 @@ void render(const std::vector<Vertex>& VBO, const Uniforms& uniforms) {
 
     // 4. Fragment Shader
     for (Fragment& fragment : fragments) {
-        Color fragmentColor = fragmentShaderEarth(fragment);
+        Color fragmentColor = renderDictionary[shaderType](fragment);
         point(framebuffer, zbuffer, fragment.position.x, fragment.position.y, fragment.z,fragmentColor);
     }
 }
 
+glm::mat4 createModeltMatrix(glm::vec3 scaleFactor, glm::vec3 translationVector, float a) {
+    glm::vec3 rotationAxis(0.0f, 1.0f, 0.2f);
+    glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(a), rotationAxis);
+
+    glm::mat4 model = glm::mat4(1);
+    glm::mat4 translation = glm::translate(glm::mat4(1.0f), translationVector);
+    glm::mat4 scale = glm::scale(glm::mat4(1.0f), scaleFactor);
+
+    return translation * rotation * scale;
+}
+
 int main(int argc, char* argv[]) {
+    renderingFunctionCall();
+
     if (!init()) {
         return 1;
     }
@@ -165,16 +161,11 @@ int main(int argc, char* argv[]) {
     resultVertexArray = setupVertexArray(vertices, normals, faces);
     glm::vec4 tempVector;
 
-    Uniforms uniforms;
+    Uniforms uniformEarth, uniformMoon;
 
-    glm::mat4 model = glm::mat4(1);
-    glm::mat4 view = glm::mat4(1);
-    glm::mat4 projection = glm::mat4(1);
-
-    glm::vec3 translationVector(0.0f, -0.5f, 0.0f);
     float a = 45.0f;
-    glm::vec3 rotationAxis(0.0f, 1.0f, 0.2f); // Rotate around the Y-axis
     glm::vec3 scaleFactor(2.0f, -2.0f, 2.0f);
+    glm::vec3 translationVector(0.0f, -0.5f, 0.0f);
 
     // Camera
     Camera camera;
@@ -182,18 +173,18 @@ int main(int argc, char* argv[]) {
     camera.targetPosition = glm::vec3(0.0f, 0.0f, 0.0f);
     camera.upVector = glm::vec3(0.0f, 1.0f, 0.0f);
 
-    glm::mat4 translation = glm::translate(glm::mat4(1.0f), translationVector);
-    glm::mat4 scale = glm::scale(glm::mat4(1.0f), scaleFactor);
+    //Earth
+    uniformEarth.viewport = createViewportMatrix();
+    uniformEarth.projection = createProjectionMatrix();
 
-    uniforms.viewport = createViewportMatrix();
-    uniforms.projection = createProjectionMatrix();
+    //Moon
+    uniformMoon.viewport = createViewportMatrix();
+    uniformMoon.projection = createProjectionMatrix();
 
     auto lastTime = high_resolution_clock::now();
 
     Uint32 frameStart, frameTime;
     std::string title = "FPS: ";
-
-    addRandomStaticWhitePixels();
 
     while (running) {
         frameStart = SDL_GetTicks();
@@ -206,20 +197,29 @@ int main(int argc, char* argv[]) {
 
         // Clear the framebuffer
         clear(framebuffer, zbuffer);
-        copyStaticPixelsToFramebuffer(framebuffer);
 
         a += 0.5;
-        glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(a), rotationAxis);
 
-
-        uniforms.model = translation * rotation * scale;
-        uniforms.view = glm::lookAt(
+        //Earth
+        uniformEarth.model = createModeltMatrix(scaleFactor, translationVector, a);
+        uniformEarth.view = glm::lookAt(
                 camera.cameraPosition, // The position of the camera
                 camera.targetPosition, // The point the camera is looking at
                 camera.upVector        // The up vector defining the camera's orientation
         );
 
-        render(resultVertexArray, uniforms);
+        //Moon
+        glm::vec3 moonTranslationVector(2.0f * std::cos(glm::radians(a)), 0, 2.0f * std::sin(glm::radians(a)));
+        uniformMoon.model = createModeltMatrix(scaleFactor*0.3f, translationVector+moonTranslationVector, a);
+        uniformMoon.view = glm::lookAt(
+                camera.cameraPosition, // The position of the camera
+                camera.targetPosition, // The point the camera is looking at
+                camera.upVector        // The up vector defining the camera's orientation
+        );
+
+        render(resultVertexArray, uniformEarth, "earth");
+        render(resultVertexArray, uniformMoon, "moon");
+
         renderBuffer(renderer, framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT);
 
         // Calculate frames per second and update window title

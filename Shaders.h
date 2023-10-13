@@ -72,7 +72,6 @@ Color fragmentShaderSun(Fragment& fragment) {
 
 
 Color fragmentShaderEarth(Fragment& fragment) {
-    Color color;
 
     const glm::vec3 orangeColor = glm::vec3(0.96f, 0.39f, 0.08f);
     const glm::vec3 redColor = glm::vec3(0.8f, 0.0f, 0.0f);
@@ -194,6 +193,23 @@ Color fragmentShaderNeptune(Fragment& fragment) {
     Color fragmentColor = Color(stripeColor.x * 255.0f, stripeColor.y * 255.0f, stripeColor.z * 255.0f);
 
     fragment.color = fragmentColor * fragment.intensity;
+
+    return fragment.color;
+}
+
+Color fragmentShaderSpace(Fragment& fragment) {
+    const int starDensity = 100; // Adjust star density as needed
+
+    // Initialize a random number generator
+    std::mt19937 gen(std::random_device{}());
+    std::uniform_int_distribution<int> randomDist(1, starDensity);
+
+    // Check if this fragment should be a star (white)
+    if (randomDist(gen) == 1) {
+        fragment.color = Color(255, 255, 255); // White for stars
+    } else {
+        fragment.color = Color(0, 0, 10); // Adjust the color as needed
+    }
 
     return fragment.color;
 }
