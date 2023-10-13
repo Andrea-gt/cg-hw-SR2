@@ -37,7 +37,7 @@ Color fragmentShaderSun(Fragment& fragment) {
     Color color;
 
     const glm::vec3 orangeColor = glm::vec3(0.96f, 0.39f, 0.08f);
-    const glm::vec3 redColor = glm::vec3(0.8f, 0.0f, 0.0f);
+    const glm::vec3 redColor = glm::vec3(0.6f, 0.003f, 0.0f);
 
     noiseGenerator.SetSeed(1337);
     noiseGenerator.SetNoiseType(FastNoiseLite::NoiseType_Cellular);
@@ -85,13 +85,13 @@ Color fragmentShaderEarth(Fragment& fragment) {
     noiseGenerator.SetCellularJitter(1);
     noiseGenerator.SetDomainWarpType(FastNoiseLite::DomainWarpType_OpenSimplex2);
 
-    glm::vec2 uv = glm::vec2(fragment.originalPos.x, fragment.originalPos.y);
+    glm::vec3 uv = glm::vec3(fragment.originalPos.x, fragment.originalPos.y, fragment.originalPos.z);
 
     float xo = 1000.0f;
     float yo = 1000.0f;
     float zoom = 2000.0f;
 
-    float noiseValue = noiseGenerator.GetNoise((uv.x + xo) * zoom, (uv.y + yo) * zoom);
+    float noiseValue = noiseGenerator.GetNoise((uv.x + xo) * zoom, (uv.y + yo) * zoom, (uv.z + yo) * zoom);
 
     // Calculate a t value between 0 and 1 based on the noise value
     float t = (noiseValue + 1.0f) / 2.0f;
@@ -105,11 +105,37 @@ Color fragmentShaderEarth(Fragment& fragment) {
     // Amplify the sun's color based on bloom intensity
     sunColor *= bloomIntensity;
 
-    color = Color(sunColor.x * 255.0f, sunColor.y * 255.0f, sunColor.z * 255.0f);
+    // Grass
+    const glm::vec3 mainGreen = glm::vec3(0.39f, 0.46f, 0.17f);
+    const glm::vec3 middleGreen = glm::vec3(0.56f, 0.66f, 0.33f);
 
-    fragment.color = color;
+    noiseGenerator.SetSeed(1337);
+    noiseGenerator.SetNoiseType(FastNoiseLite::NoiseType_Cellular);
+    noiseGenerator.SetCellularDistanceFunction(FastNoiseLite::CellularDistanceFunction_Hybrid);
+    noiseGenerator.SetCellularReturnType(FastNoiseLite::CellularReturnType_CellValue);
+    noiseGenerator.SetCellularJitter(1);
+    noiseGenerator.SetDomainWarpType(FastNoiseLite::DomainWarpType_OpenSimplex2);
 
-    return fragment.color;
+    // Generate noise based on the adjusted position and zoom.
+    float noiseValue2 = noiseGenerator.GetNoise((uv.x + xo) * zoom, (uv.y + yo) * zoom, (uv.z + yo) * zoom);
+
+    glm::vec3 finalColor = glm::mix(mainGreen, middleGreen, noiseValue2);
+
+    noiseGenerator.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    // Generate noise based on the adjusted position and zoom.
+    float noiseValueC = noiseGenerator.GetNoise((uv.x + xo) * 300.0f, (uv.y + yo) * 300.0f, (uv.z + yo) * 300.0f);
+
+    // Combine 'color' and 'finalColor' based on 'noiseValueC'
+    glm::vec3 tmpColor = (noiseValueC < 0.2f) ? sunColor : finalColor;
+
+    // Create a Color object from 'tmpColor'
+    Color fragmentColor = Color(tmpColor.x * 255.0f, tmpColor.y * 255.0f, tmpColor.z * 255.0f);
+
+    fragment.color = fragmentColor * fragment.intensity;
+    return fragmentColor;
 }
+
+
+
 
 

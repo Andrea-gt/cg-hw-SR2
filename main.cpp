@@ -142,7 +142,7 @@ void render(const std::vector<Vertex>& VBO, const Uniforms& uniforms) {
 
     // 4. Fragment Shader
     for (Fragment& fragment : fragments) {
-        Color fragmentColor = fragmentShaderSun(fragment);
+        Color fragmentColor = fragmentShaderEarth(fragment);
         point(framebuffer, zbuffer, fragment.position.x, fragment.position.y, fragment.z,fragmentColor);
     }
 }
