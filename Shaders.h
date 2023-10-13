@@ -135,6 +135,74 @@ Color fragmentShaderEarth(Fragment& fragment) {
     return fragmentColor;
 }
 
+Color fragmentShaderMoon(Fragment& fragment) {
+    const int seed = 42; // You can change the seed for variation
+    const float zoom = 1000.0f;
+    const glm::vec3 lightGray = glm::vec3(0.7f, 0.7f, 0.7f);
+    const glm::vec3 darkGray = glm::vec3(0.3f, 0.3f, 0.3f);
+
+    noiseGenerator.SetSeed(seed);
+    noiseGenerator.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    noiseGenerator.SetFrequency(0.01f); // Adjust the frequency for fine details
+    noiseGenerator.SetCellularDistanceFunction(FastNoiseLite::CellularDistanceFunction_Euclidean);
+    noiseGenerator.SetCellularReturnType(FastNoiseLite::CellularReturnType_Distance2Add);
+    noiseGenerator.SetCellularJitter(2);
+
+    glm::vec3 uv = glm::vec3(fragment.originalPos.x, fragment.originalPos.y, fragment.originalPos.z);
+
+    // Adjust the noise parameters to control the appearance of the moon
+    float noiseValue = noiseGenerator.GetNoise(uv.x * zoom, uv.y * zoom, uv.z * zoom);
+    noiseValue = (noiseValue + 1.0f) * 0.5f; // Normalize to [0, 1]
+
+    // Use noiseValue to determine the moon surface color
+    glm::vec3 moonSurfaceColor = glm::mix(darkGray, lightGray, noiseValue);
+
+    // Create a Color object from 'moonSurfaceColor'
+    Color fragmentColor = Color(moonSurfaceColor.x * 255.0f, moonSurfaceColor.y * 255.0f, moonSurfaceColor.z * 255.0f);
+
+    fragment.color = fragmentColor * fragment.intensity;
+
+    return fragment.color;
+}
+
+Color fragmentShaderNeptune(Fragment& fragment) {
+    const int seed = 1234;
+    const float zoom = 1000.0f;
+    const float stripeWidth = 0.5f; // Adjust the width of the stripes
+    const glm::vec3 stripeColor1 = glm::vec3(0.2f, 0.4f, 0.6f);
+    const glm::vec3 stripeColor2 = glm::vec3(0.4f, 0.2f, 0.6f);
+
+    noiseGenerator.SetSeed(seed);
+    noiseGenerator.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    noiseGenerator.SetFrequency(0.02f);
+    noiseGenerator.SetCellularDistanceFunction(FastNoiseLite::CellularDistanceFunction_Euclidean);
+    noiseGenerator.SetCellularReturnType(FastNoiseLite::CellularReturnType_Distance2Add);
+    noiseGenerator.SetCellularJitter(2);
+
+    glm::vec3 uv = glm::vec3(fragment.originalPos.x, fragment.originalPos.y, fragment.originalPos.z);
+
+    // Use FastNoiseLite to generate the stripe pattern
+    float noiseValue = noiseGenerator.GetNoise(uv.x * zoom, uv.y * zoom, uv.z * zoom);
+
+    // Use a sine function to create a smooth stripe pattern
+    float stripePattern = 0.5f * (glm::sin(uv.x * stripeWidth) + glm::sin(uv.y * stripeWidth) + noiseValue);
+
+    // Interpolate between stripe colors
+    glm::vec3 stripeColor = glm::mix(stripeColor1, stripeColor2, stripePattern);
+
+    // Create a Color object from 'stripeColor'
+    Color fragmentColor = Color(stripeColor.x * 255.0f, stripeColor.y * 255.0f, stripeColor.z * 255.0f);
+
+    fragment.color = fragmentColor * fragment.intensity;
+
+    return fragment.color;
+}
+
+
+
+
+
+
 
 
 
