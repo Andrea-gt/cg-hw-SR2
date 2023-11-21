@@ -9,16 +9,29 @@
 #include <glm/glm.hpp>
 #include <chrono>
 #include <omp.h>
+#include <random>
 #include "Shaders.h"
 #include "Fragment.h"
 #include "Camera.h"
 
 using namespace std::chrono;
 
+using renderFunction = std::function<Color(Fragment&)>;
+std::unordered_map<std::string, renderFunction> renderDictionary;
+
+void renderingFunctionCall() {
+    renderDictionary["moon"] = fragmentShaderMoon;
+    renderDictionary["earth"] = fragmentShaderEarth;
+    renderDictionary["neptune"] = fragmentShaderNeptune;
+    renderDictionary["sun"] = fragmentShaderSun;
+    renderDictionary["ship"] = fragmentShader;
+}
+
+
 // Global variables
 Framebuffer framebuffer;
 Zbuffer zbuffer;
-std::vector<Vertex> resultVertexArray;
+std::vector<Vertex> resultVertexArray, resultVertexArrayShip;
 
 
 // SDL window and renderer
@@ -45,6 +58,33 @@ bool init() {
     }
 
     return true;
+}
+
+int getRandomInt(int min, int max) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dist(min, max);
+    return dist(gen);
+}
+
+std::vector<std::pair<int, int>> staticPixels;
+
+// Function to add random static white pixels
+void addRandomStaticWhitePixels() {
+    staticPixels.clear();  // Clear the existing static pixels
+    int numStaticPixels = 250;  // Adjust the number of static pixels as needed
+    for (int i = 0; i < numStaticPixels; ++i) {
+        int x = getRandomInt(0, SCREEN_WIDTH - 1);
+        int y = getRandomInt(0, SCREEN_HEIGHT - 1);
+        staticPixels.push_back(std::make_pair(x, y));
+    }
+}
+
+// Function to copy static pixels to the framebuffer
+void copyStaticPixelsToFramebuffer(Framebuffer& framebuffer) {
+    for (const auto& pixel : staticPixels) {
+        point(framebuffer, zbuffer, pixel.first, pixel.second, 0, Color(100, 100, 100), true);
+    }
 }
 
 std::vector<std::vector<Vertex>> primitiveAssembly(const std::vector<Vertex>& transformedVertices) {
@@ -85,9 +125,10 @@ glm::mat4 createViewportMatrix() {
 }
 
 // Function to render using vertex and uniform data
-void render(const std::vector<Vertex>& VBO, const Uniforms& uniforms) {
+void render(const std::vector<Vertex> &VBO, const Uniforms &uniforms, std::string shaderType, glm::vec3 translationVector = L) {
     // 1. Vertex Shader
     std::vector<Vertex> transformedVertices;
+
 #pragma omp parallel for
     for (int i=0; i<VBO.size(); i+=1) {
         Vertex transformedVertex = vertexShader(VBO[i], uniforms);
@@ -103,7 +144,8 @@ void render(const std::vector<Vertex>& VBO, const Uniforms& uniforms) {
         std::vector<Fragment> rasterizedTriangle = triangle(
                 item[0],
                 item[1],
-                item[2]
+                item[2],
+                translationVector
         );
         fragments.insert(
                 fragments.end(),
@@ -114,12 +156,25 @@ void render(const std::vector<Vertex>& VBO, const Uniforms& uniforms) {
 
     // 4. Fragment Shader
     for (Fragment& fragment : fragments) {
-        Color fragmentColor = fragmentShader(fragment);
+        Color fragmentColor = renderDictionary[shaderType](fragment);
         point(framebuffer, zbuffer, fragment.position.x, fragment.position.y, fragment.z,fragmentColor);
     }
 }
 
+glm::mat4 createModeltMatrix(glm::vec3 scaleFactor, glm::vec3 translationVector, float a) {
+    glm::vec3 rotationAxis(0.0f, 1.0f, 0.0f);
+    glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(a), rotationAxis);
+
+    glm::mat4 model = glm::mat4(1);
+    glm::mat4 translation = glm::translate(glm::mat4(1.0f), translationVector);
+    glm::mat4 scale = glm::scale(glm::mat4(1.0f), scaleFactor);
+
+    return translation * rotation * scale;
+}
+
 int main(int argc, char* argv[]) {
+    renderingFunctionCall();
+
     if (!init()) {
         return 1;
     }
@@ -133,20 +188,27 @@ int main(int argc, char* argv[]) {
     std::vector<glm::vec3> vertexBufferObject; // This will contain both vertices and normals
 
     // Load OBJ file and set up vertex and face data
-    loadOBJ("../Spaceship.obj", vertices, normals, texCoords, faces );
+    loadOBJ("../sphere.obj", vertices, normals, texCoords, faces );
     resultVertexArray = setupVertexArray(vertices, normals, faces);
+
+    vertices = {};
+    normals = {};
+    texCoords = {};
+    faces = {};
+
+    loadOBJ("../Spaceship4.obj", vertices, normals, texCoords, faces );
+    //loadOBJ("../nave2.obj", vertices, normals, texCoords, faces );
+    resultVertexArrayShip = setupVertexArray(vertices, normals, faces);
+
     glm::vec4 tempVector;
 
-    Uniforms uniforms;
+    Uniforms uniformSun, uniformEarth, uniformNeptune, uniformMoon, uniformShip;
 
-    glm::mat4 model = glm::mat4(1);
-    glm::mat4 view = glm::mat4(1);
-    glm::mat4 projection = glm::mat4(1);
-
-    glm::vec3 translationVector(0.0f, 0.0f, 0.0f);
     float a = 45.0f;
-    glm::vec3 rotationAxis(0.0f, 1.0f, 0.2f); // Rotate around the Y-axis
-    glm::vec3 scaleFactor(1.0f, -1.0f, 1.0f);
+    float b = 45.0f;
+
+    glm::vec3 scaleFactor(2.0f, -2.0f, 2.0f);
+    glm::vec3 translationVector(0.0f, -0.5f, 0.0f);
 
     // Camera
     Camera camera;
@@ -154,16 +216,34 @@ int main(int argc, char* argv[]) {
     camera.targetPosition = glm::vec3(0.0f, 0.0f, 0.0f);
     camera.upVector = glm::vec3(0.0f, 1.0f, 0.0f);
 
-    glm::mat4 translation = glm::translate(glm::mat4(1.0f), translationVector);
-    glm::mat4 scale = glm::scale(glm::mat4(1.0f), scaleFactor);
+    //Sun
+    uniformSun.viewport = createViewportMatrix();
+    uniformSun.projection = createProjectionMatrix();
 
-    uniforms.viewport = createViewportMatrix();
-    uniforms.projection = createProjectionMatrix();
+    //Earth
+    uniformEarth.viewport = createViewportMatrix();
+    uniformEarth.projection = createProjectionMatrix();
+
+    //Neptune
+    uniformNeptune.viewport = createViewportMatrix();
+    uniformNeptune.projection = createProjectionMatrix();
+
+    //Moon
+    uniformMoon.viewport = createViewportMatrix();
+    uniformMoon.projection = createProjectionMatrix();
+
+    //Ship
+    uniformShip.viewport = createViewportMatrix();
+    uniformShip.projection = createProjectionMatrix();
+
 
     auto lastTime = high_resolution_clock::now();
 
     Uint32 frameStart, frameTime;
     std::string title = "FPS: ";
+    float rotSpeed = M_PI;
+    camera.targetPosition = glm::vec3(camera.cameraPosition.x + 2.0f * sin(rotSpeed), 0.0f, camera.cameraPosition.z + 2.0f * cos(rotSpeed));
+    addRandomStaticWhitePixels();
 
     while (running) {
         frameStart = SDL_GetTicks();
@@ -172,23 +252,81 @@ int main(int argc, char* argv[]) {
             if (event.type == SDL_QUIT) {
                 running = false;
             }
+
+            if (event.type == SDL_KEYDOWN) {
+                switch (event.key.keysym.sym) {
+                    case SDLK_w:
+                        camera.cameraPosition.x += 0.8f * sin(rotSpeed);
+                        camera.cameraPosition.z += 0.8f * cos(rotSpeed);
+                        camera.targetPosition.x += 0.8f * sin(rotSpeed);
+                        camera.targetPosition.z += 0.8f * cos(rotSpeed);
+                        break;
+                    case SDLK_a:
+                        rotSpeed += 0.05;
+                        camera.targetPosition = glm::vec3(camera.cameraPosition.x + 2.0f * sin(rotSpeed), 0.0f, camera.cameraPosition.z + 2.0f * cos(rotSpeed));
+                        break;
+                    case SDLK_s:
+                        camera.cameraPosition.x -= 0.8f * sin(rotSpeed);
+                        camera.cameraPosition.z -= 0.8f * cos(rotSpeed);
+                        camera.targetPosition.x -= 0.8f * sin(rotSpeed);
+                        camera.targetPosition.z -= 0.8f * cos(rotSpeed);
+                        break;
+                    case SDLK_d:
+                        rotSpeed -= 0.05;
+                        camera.targetPosition = glm::vec3(camera.cameraPosition.x + 2.0f * sin(rotSpeed), 0.0f, camera.cameraPosition.z + 2.0f * cos(rotSpeed));
+                        break;
+                }
+            }
+
         }
+
+        glm::mat4 view = glm::lookAt(
+                camera.cameraPosition, // The position of the camera
+                camera.targetPosition, // The point the camera is looking at
+                camera.upVector
+        );
+
+
+        // Calculate the difference vector
+        glm::vec3 spaceShipPos = camera.targetPosition;
+        spaceShipPos.y += 0.1f;
 
         // Clear the framebuffer
         clear(framebuffer, zbuffer);
+        copyStaticPixelsToFramebuffer(framebuffer);
 
         a += 0.5;
-        glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(a), rotationAxis);
+        b += 0.8;
 
+        //Sun
+        uniformSun.model = createModeltMatrix(scaleFactor, translationVector, a);
+        uniformSun.view = view;
 
-        uniforms.model = translation * rotation * scale;
-        uniforms.view = glm::lookAt(
-                camera.cameraPosition, // The position of the camera
-                camera.targetPosition, // The point the camera is looking at
-                camera.upVector        // The up vector defining the camera's orientation
-        );
+        //Earth
+        glm::vec3 earthTranslationVector(2.0f * std::cos(glm::radians(a)), 0, 2.0f * std::sin(glm::radians(a)));
+        uniformEarth.model = createModeltMatrix(scaleFactor*0.2f, translationVector+earthTranslationVector, a);
+        uniformEarth.view = view;
 
-        render(resultVertexArray, uniforms);
+        //Moon
+        glm::vec3 moonTranslationVector(0.5f * std::cos(glm::radians(b)), 0, 0.5f * std::sin(glm::radians(b)));
+        uniformMoon.model = createModeltMatrix(scaleFactor*0.1f, translationVector+moonTranslationVector+earthTranslationVector, a);
+        uniformMoon.view = view;
+
+        //Neptune
+        glm::vec3 neptuneTranslationVector(3.0f * std::cos(glm::radians(a)), 0, 3.0f * std::sin(glm::radians(a)));
+        uniformNeptune.model = createModeltMatrix(scaleFactor*0.3f, translationVector+neptuneTranslationVector, a);
+        uniformNeptune.view = view;
+
+        glm::mat4 rotation = glm::rotate(glm::mat4(1),glm::radians(20.0f),glm::vec3(0,0,1));
+        uniformShip.model = createModeltMatrix(scaleFactor*0.07f, spaceShipPos, glm::degrees(rotSpeed-(M_PI/2))) * rotation;
+        uniformShip.view = view;
+
+        render(resultVertexArray, uniformSun, "sun", translationVector);
+        render(resultVertexArray, uniformEarth, "earth", translationVector+earthTranslationVector);
+        render(resultVertexArray, uniformNeptune, "neptune", translationVector+neptuneTranslationVector);
+        render(resultVertexArray, uniformMoon, "moon", translationVector+moonTranslationVector+earthTranslationVector);
+        render(resultVertexArrayShip, uniformShip, "ship", -((translationVector + spaceShipPos) + camera.cameraPosition));
+
         renderBuffer(renderer, framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT);
 
         // Calculate frames per second and update window title

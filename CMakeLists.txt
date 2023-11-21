@@ -24,7 +24,10 @@ target_include_directories(${PROJECT_NAME}
         PUBLIC ${PROJECT_SOURCE_DIR}/src
         )
 
+
+find_package(TBB REQUIRED)
+target_link_libraries(${PROJECT_NAME} TBB::tbb)
+
 target_link_libraries(${PROJECT_NAME}
         ${SDL2_LIBRARIES}
-
         )

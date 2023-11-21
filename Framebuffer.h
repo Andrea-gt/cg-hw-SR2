@@ -17,7 +17,7 @@ using Framebuffer = std::array<std::array<Color, SCREEN_WIDTH>, SCREEN_HEIGHT>;
 
 using Zbuffer = std::array<std::array<float, SCREEN_WIDTH>, SCREEN_HEIGHT>;
 
-glm::vec3 L = glm::vec3(50.0f, 0.0f, 50.0f);
+glm::vec3 L = glm::vec3(0.0f, 0.0f, 0.0f);
 
 std::pair<float, float> barycentricCoordinates(const glm::ivec2& P, const glm::vec3& A, const glm::vec3& B, const glm::vec3& C) {
     glm::vec3 bary = glm::cross(
@@ -46,17 +46,21 @@ void clear(Framebuffer& framebuffer, Zbuffer& zbuffer) {
     }
 }
 
-void point(Framebuffer &framebuffer, Zbuffer &zbuffer,  int x, int y, double z, Color color) {
+void point(Framebuffer &framebuffer, Zbuffer &zbuffer,  int x, int y, double z, Color color, bool star=false) {
     if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
         if(zbuffer[y][x] > z ){
             framebuffer[y][x] = color;
-            zbuffer[y][x] = z;
+            zbuffer[y][x] = !star? z: 9999.0f;
         }
     }
 }
 
-std::vector<Fragment> triangle(const Vertex& a, const Vertex& b, const Vertex& c) {
+std::vector<Fragment> triangle(const Vertex& a, const Vertex& b, const Vertex& c, glm::vec3 translationVector) {
     std::vector<Fragment> fragments;
+
+    if((a.fix.z <= -0.5f && b.fix.z <= -0.5f && c.fix.z <= -0.5f) || (a.fix.w <= -0.5f && b.fix.w <= -0.5f && c.fix.w <= -0.5f))
+        return fragments;
+
     glm::vec3 A = a.position;
     glm::vec3 B = b.position;
     glm::vec3 C = c.position;
@@ -80,6 +84,12 @@ std::vector<Fragment> triangle(const Vertex& a, const Vertex& b, const Vertex& c
             float u = barycentric.second;
             float epsilon = 1e-10;
 
+            double z_fix = a.fix.z * w + b.fix.z * v + c.fix.z * u;
+            double w_fix = a.fix.w * w + b.fix.w * v + c.fix.w * u;
+
+            if(z_fix <= -5.0f && w_fix <= -5.0f)
+                continue;
+
             if (w < epsilon || v < epsilon || u < epsilon)
                 continue;
 
@@ -89,17 +99,21 @@ std::vector<Fragment> triangle(const Vertex& a, const Vertex& b, const Vertex& c
                     a.normal * w + b.normal * v + c.normal * u
             );
 
-            glm::vec3 lightDirection = glm::normalize(L - glm::vec3(w,v,u));
+            glm::vec3 lightDirection = glm::normalize(L - translationVector);
             float intensity = glm::dot(normal, lightDirection);
+            intensity = glm::clamp(intensity, 0.0f, 1.0f);
             
             Color color = Color(255, 255, 255);
+            glm::vec3 original = a.originalPos * w + b.originalPos * v + c.originalPos * u;
 
             fragments.push_back(
                     Fragment{
                             P,
                             color,
                             z,
-                            intensity}
+                            intensity,
+                            original,
+                            normal}
             );
         }
     }
