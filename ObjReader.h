@@ -52,7 +52,6 @@ bool loadOBJ(
         else if (lineHeader == "f")
         {
             Face face;
-#pragma omp parallel for
             for (int i = 0; i < 3; ++i)
             {
                 std::string faceData;

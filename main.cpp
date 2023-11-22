@@ -16,18 +16,6 @@
 
 using namespace std::chrono;
 
-using renderFunction = std::function<Color(Fragment&)>;
-std::unordered_map<std::string, renderFunction> renderDictionary;
-
-void renderingFunctionCall() {
-    renderDictionary["moon"] = fragmentShaderMoon;
-    renderDictionary["earth"] = fragmentShaderEarth;
-    renderDictionary["neptune"] = fragmentShaderNeptune;
-    renderDictionary["sun"] = fragmentShaderSun;
-    renderDictionary["ship"] = fragmentShader;
-}
-
-
 // Global variables
 Framebuffer framebuffer;
 Zbuffer zbuffer;
@@ -125,14 +113,14 @@ glm::mat4 createViewportMatrix() {
 }
 
 // Function to render using vertex and uniform data
-void render(const std::vector<Vertex> &VBO, const Uniforms &uniforms, std::string shaderType, glm::vec3 translationVector = L) {
+void render(const std::vector<Vertex> &VBO, const Uniforms &uniforms, Color (*shader)(Fragment&), glm::vec3 translationVector = L) {
     // 1. Vertex Shader
-    std::vector<Vertex> transformedVertices;
+    std::vector<Vertex> transformedVertices(VBO.size());
 
-#pragma omp parallel for
+    //#pragma omp parallel for
     for (int i=0; i<VBO.size(); i+=1) {
         Vertex transformedVertex = vertexShader(VBO[i], uniforms);
-        transformedVertices.push_back(transformedVertex);
+        transformedVertices[i] = transformedVertex;
     }
 
     // 2. Primitive Assembly
@@ -156,7 +144,7 @@ void render(const std::vector<Vertex> &VBO, const Uniforms &uniforms, std::strin
 
     // 4. Fragment Shader
     for (Fragment& fragment : fragments) {
-        Color fragmentColor = renderDictionary[shaderType](fragment);
+        Color fragmentColor = shader(fragment);
         point(framebuffer, zbuffer, fragment.position.x, fragment.position.y, fragment.z,fragmentColor);
     }
 }
@@ -173,7 +161,6 @@ glm::mat4 createModeltMatrix(glm::vec3 scaleFactor, glm::vec3 translationVector,
 }
 
 int main(int argc, char* argv[]) {
-    renderingFunctionCall();
 
     if (!init()) {
         return 1;
@@ -302,30 +289,40 @@ int main(int argc, char* argv[]) {
         uniformSun.model = createModeltMatrix(scaleFactor, translationVector, a);
         uniformSun.view = view;
 
-        //Earth
-        glm::vec3 earthTranslationVector(2.0f * std::cos(glm::radians(a)), 0, 2.0f * std::sin(glm::radians(a)));
-        uniformEarth.model = createModeltMatrix(scaleFactor*0.2f, translationVector+earthTranslationVector, a);
-        uniformEarth.view = view;
-
-        //Moon
-        glm::vec3 moonTranslationVector(0.5f * std::cos(glm::radians(b)), 0, 0.5f * std::sin(glm::radians(b)));
-        uniformMoon.model = createModeltMatrix(scaleFactor*0.1f, translationVector+moonTranslationVector+earthTranslationVector, a);
-        uniformMoon.view = view;
-
-        //Neptune
-        glm::vec3 neptuneTranslationVector(3.0f * std::cos(glm::radians(a)), 0, 3.0f * std::sin(glm::radians(a)));
-        uniformNeptune.model = createModeltMatrix(scaleFactor*0.3f, translationVector+neptuneTranslationVector, a);
-        uniformNeptune.view = view;
-
         glm::mat4 rotation = glm::rotate(glm::mat4(1),glm::radians(20.0f),glm::vec3(0,0,1));
         uniformShip.model = createModeltMatrix(scaleFactor*0.07f, spaceShipPos, glm::degrees(rotSpeed-(M_PI/2))) * rotation;
         uniformShip.view = view;
 
-        render(resultVertexArray, uniformSun, "sun", translationVector);
-        render(resultVertexArray, uniformEarth, "earth", translationVector+earthTranslationVector);
-        render(resultVertexArray, uniformNeptune, "neptune", translationVector+neptuneTranslationVector);
-        render(resultVertexArray, uniformMoon, "moon", translationVector+moonTranslationVector+earthTranslationVector);
-        render(resultVertexArrayShip, uniformShip, "ship", -((translationVector + spaceShipPos) + camera.cameraPosition));
+        #pragma omp parallel for
+        for(int i = 0; i<4; i++) {
+            if(i==0){
+                render(resultVertexArray, uniformSun, fragmentShaderSun, translationVector);
+            }
+            
+            else if(i==1) {
+
+                glm::vec3 earthTranslationVector(2.0f * std::cos(glm::radians(a)), 0, 2.0f * std::sin(glm::radians(a)));
+                uniformEarth.model = createModeltMatrix(scaleFactor*0.2f, translationVector+earthTranslationVector, a);
+                uniformEarth.view = view;
+
+                //Moon
+                glm::vec3 moonTranslationVector(0.5f * std::cos(glm::radians(b)), 0, 0.5f * std::sin(glm::radians(b)));
+                uniformMoon.model = createModeltMatrix(scaleFactor*0.1f, translationVector+moonTranslationVector+earthTranslationVector, a);
+                uniformMoon.view = view;
+                render(resultVertexArray, uniformEarth, fragmentShaderEarth, translationVector+earthTranslationVector);
+                render(resultVertexArray, uniformMoon, fragmentShaderMoon, translationVector+moonTranslationVector+earthTranslationVector);
+
+            } else if (i==2) {
+                //Neptune
+                glm::vec3 neptuneTranslationVector(3.0f * std::cos(glm::radians(a)), 0, 3.0f * std::sin(glm::radians(a)));
+                uniformNeptune.model = createModeltMatrix(scaleFactor*0.3f, translationVector+neptuneTranslationVector, a);
+                uniformNeptune.view = view;
+                render(resultVertexArray, uniformNeptune, fragmentShaderNeptune, translationVector+neptuneTranslationVector);
+
+            } else if (i==3) {
+                render(resultVertexArrayShip, uniformShip, fragmentShader, -((translationVector + spaceShipPos) + camera.cameraPosition));
+            }
+        }
 
         renderBuffer(renderer, framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT);
 

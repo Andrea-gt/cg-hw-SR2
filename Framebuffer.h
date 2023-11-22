@@ -37,7 +37,7 @@ std::pair<float, float> barycentricCoordinates(const glm::ivec2& P, const glm::v
 
 void clear(Framebuffer& framebuffer, Zbuffer& zbuffer) {
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (size_t i = 0; i < SCREEN_HEIGHT; i++) {
         for (size_t j = 0; j < SCREEN_WIDTH; j++) {
             framebuffer[i][j] = Color(0,0,0);
@@ -58,7 +58,7 @@ void point(Framebuffer &framebuffer, Zbuffer &zbuffer,  int x, int y, double z, 
 std::vector<Fragment> triangle(const Vertex& a, const Vertex& b, const Vertex& c, glm::vec3 translationVector) {
     std::vector<Fragment> fragments;
 
-    if((a.fix.z <= -0.5f && b.fix.z <= -0.5f && c.fix.z <= -0.5f) || (a.fix.w <= -0.5f && b.fix.w <= -0.5f && c.fix.w <= -0.5f))
+    if((a.fix.z <= 1.0f && b.fix.z <= 1.0f && c.fix.z <= 1.0f) || (a.fix.w <= 1.0f && b.fix.w <= 1.0f && c.fix.w <= 1.0f))
         return fragments;
 
     glm::vec3 A = a.position;
@@ -71,7 +71,6 @@ std::vector<Fragment> triangle(const Vertex& a, const Vertex& b, const Vertex& c
     float maxY = std::max(std::max(A.y, B.y), C.y);
 
     // Iterate over each point in the bounding box
-#pragma omp parallel for
     for (int y = static_cast<int>(std::ceil(minY)); y <= static_cast<int>(std::floor(maxY)); ++y) {
         for (int x = static_cast<int>(std::ceil(minX)); x <= static_cast<int>(std::floor(maxX)); ++x) {
             if (x < 0 || y < 0 || y > SCREEN_HEIGHT || x > SCREEN_WIDTH)
@@ -132,7 +131,6 @@ void renderBuffer(SDL_Renderer* renderer, const Framebuffer& framebuffer, int te
 
     Uint32* texturePixels32 = static_cast<Uint32*>(texturePixels);
 
-#pragma omp parallel for
     for (int y = 0; y < textureHeight; y++) {
         for (int x = 0; x < textureWidth; x++) {
             int index = y * (pitch / sizeof(Uint32)) + x;

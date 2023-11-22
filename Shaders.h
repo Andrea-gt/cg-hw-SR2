@@ -5,7 +5,7 @@
 #include "FastNoiseLite.h"
 #include "Camera.h"
 
-FastNoiseLite noiseGenerator;
+FastNoiseLite noiseGenerator, neptuneNoiseGenerator;
 
 Vertex vertexShader(const Vertex& vertex, const Uniforms& uniforms) {
     // Apply transformations to the input vertex using the matrices from the uniforms
@@ -179,17 +179,17 @@ Color fragmentShaderNeptune(Fragment& fragment) {
     const glm::vec3 stripeColor1 = glm::vec3(0.2f, 0.4f, 0.6f);
     const glm::vec3 stripeColor2 = glm::vec3(0.4f, 0.2f, 0.6f);
 
-    noiseGenerator.SetSeed(seed);
-    noiseGenerator.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    noiseGenerator.SetFrequency(0.02f);
-    noiseGenerator.SetCellularDistanceFunction(FastNoiseLite::CellularDistanceFunction_Euclidean);
-    noiseGenerator.SetCellularReturnType(FastNoiseLite::CellularReturnType_Distance2Add);
-    noiseGenerator.SetCellularJitter(2);
+    neptuneNoiseGenerator.SetSeed(seed);
+    neptuneNoiseGenerator.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    neptuneNoiseGenerator.SetFrequency(0.02f);
+    neptuneNoiseGenerator.SetCellularDistanceFunction(FastNoiseLite::CellularDistanceFunction_Euclidean);
+    neptuneNoiseGenerator.SetCellularReturnType(FastNoiseLite::CellularReturnType_Distance2Add);
+    neptuneNoiseGenerator.SetCellularJitter(2);
 
     glm::vec3 uv = glm::vec3(fragment.originalPos.x, fragment.originalPos.y, fragment.originalPos.z);
 
     // Use FastNoiseLite to generate the stripe pattern
-    float noiseValue = noiseGenerator.GetNoise(uv.x * zoom, uv.y * zoom, uv.z * zoom);
+    float noiseValue = neptuneNoiseGenerator.GetNoise(uv.x * zoom, uv.y * zoom, uv.z * zoom);
 
     // Use a sine function to create a smooth stripe pattern
     float stripePattern = 0.5f * (glm::sin(uv.x * stripeWidth) + glm::sin(uv.y * stripeWidth) + noiseValue);
