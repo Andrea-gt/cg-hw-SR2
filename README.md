@@ -9,12 +9,20 @@ And guess what? You're not just an observer; you're at the helm of a nifty camer
 [![Apple](https://img.shields.io/badge/C++-999999?style=for-the-badge&logo=cplusplus&logoColor=white&labelColor=yellow)]()
 
 ## Demo
+### Spaceship
+<img src="https://github.com/Andrea-gt/cg-hw-SR2/blob/main/FlatShading.gif" alt="Spaceship" width="500">
 
-### Spaceship Gif
-![](https://github.com/Andrea-gt/cg-hw-SR2/blob/main/FlatShading.gif)
+### Planets
+<img src="https://github.com/Andrea-gt/cg-hw-SR2/blob/Shaders/Shaders.gif" alt="Planets" width="500">
 
 
 ## Authors
 
 - [@Andrea-gt](https://github.com/Andrea-gt)
+
+## Features
+- 4 planets
+- Spaceship followed by camera
+- Skybox
+- 3D camera movement
 
