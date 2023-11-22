@@ -10,14 +10,17 @@ And guess what? You're not just an observer; you're at the helm of a nifty camer
 
 ## Demo
 ### Spaceship
-<img src="https://github.com/Andrea-gt/cg-hw-SR2/blob/main/FlatShading.gif" alt="Spaceship" width="500">
+<img src="https://github.com/Andrea-gt/cg-hw-SR2/blob/Space-Adventure/FlatShading.gif" alt="Spaceship" width="500">
 
 ### Planets
-<img src="https://github.com/Andrea-gt/cg-hw-SR2/blob/Shaders/Shaders.gif" alt="Planets" width="500">
+<img src="https://github.com/Andrea-gt/cg-hw-SR2/blob/Space-Adventure/Shaders.gif" alt="Planets" width="500">
+
+### Simulation
+<img src="https://github.com/Andrea-gt/cg-hw-SR2/blob/Space-Adventure/Simulation.gif" alt="Sim" width="500">
+
 
 
 ## Authors
-
 - [@Andrea-gt](https://github.com/Andrea-gt)
 
 ## Features
@@ -25,4 +28,5 @@ And guess what? You're not just an observer; you're at the helm of a nifty camer
 - Spaceship followed by camera
 - Skybox
 - 3D camera movement
+- Doesn't crash
 
